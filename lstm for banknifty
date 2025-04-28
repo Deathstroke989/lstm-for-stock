@@ -1,0 +1,62 @@
+import yfinance as yf
+import numpy as np
+from sklearn.preprocessing import MinMaxScaler
+from keras._tf_keras.keras.models import Sequential
+from keras._tf_keras.keras.layers import LSTM,Dense
+import matplotlib.pyplot as plt
+# Download data
+stock_data = yf.download('^NSEBANK', start='2020-01-01', end='2023-01-01')
+prices = stock_data['Close'].values.reshape(-1, 1)
+
+# Scale data
+scaler = MinMaxScaler()
+prices_scaled = scaler.fit_transform(prices)
+
+# Create sequences (e.g., 60 days to predict next day)
+sequence_length = 60
+X, y = [], []
+for i in range(len(prices_scaled) - sequence_length):
+    X.append(prices_scaled[i:i + sequence_length])
+    y.append(prices_scaled[i + sequence_length])
+X, y = np.array(X), np.array(y)
+
+# Split data
+train_size = int(0.8 * len(X))
+X_train, X_test = X[:train_size], X[train_size:]
+y_train, y_test = y[:train_size], y[train_size:]
+
+# Build LSTM
+model = Sequential([
+    LSTM(100, return_sequences=True, input_shape=(sequence_length, 1)),
+    LSTM(100),
+    Dense(1)
+])
+
+# Compile and train
+model.compile(optimizer='adam', loss='mse')
+model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.1)
+a=model.predict(X_test)
+
+prices_reversed=scaler.inverse_transform(a)
+print(prices_reversed)
+
+
+test_loss = model.evaluate(X_test, y_test)
+
+print(test_loss)
+actual_prices = scaler.inverse_transform(y_test)
+
+
+
+
+# Plot actual vs predicted prices
+plt.figure(figsize=(12, 6))
+plt.plot(actual_prices, label='Actual Prices', color='blue')
+plt.plot(prices_reversed, label='Predicted Prices', color='orange', linestyle='--')
+plt.title('Actual vs Predicted NIFTY Bank Index Prices')
+plt.xlabel('Time')
+plt.ylabel('Price (INR)')
+plt.legend()
+plt.grid(True)
+plt.show()
+
